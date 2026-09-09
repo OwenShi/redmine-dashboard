@@ -133,6 +133,11 @@ REDMINE_API_KEY=你的key nohup node server.js > dashboard.log 2>&1 &
 - **前端**：原生 HTML/CSS/JS + Alpine.js（CDN）+ 内联 SVG 图标
 - **数据源**：Redmine REST API + GitLab REST API（内存缓存，无外部存储）
 
+## 开发注意
+
+- `*.bat` / `*.ps1` 必须保持 **CRLF** 换行：cmd.exe 解析 LF 换行的批处理会把多行粘成一行执行。已由 `.gitattributes` 锁定入库字节，但在 macOS/Linux 上编辑这些文件时请确认编辑器不会把换行转成 LF
+- 启动脚本（`.command` / `start.sh`）保持 LF
+
 ## 后续可扩展
 
 - 加工时统计视图

@@ -1,6 +1,7 @@
-# 换行规范：Windows 脚本必须保持 CRLF（cmd.exe 解析 LF 批处理会命令粘连）
+# 换行规范（git 按后匹配优先，通配规则必须在最前）
+# Windows 脚本必须保持 CRLF（cmd.exe 解析 LF 批处理会命令粘连）
+* text=auto
 *.bat -text
 *.ps1 -text
 *.sh text eol=lf
 *.command text eol=lf
-* text=auto

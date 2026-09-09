@@ -1,0 +1,6 @@
+# 换行规范：Windows 脚本必须保持 CRLF（cmd.exe 解析 LF 批处理会命令粘连）
+*.bat -text
+*.ps1 -text
+*.sh text eol=lf
+*.command text eol=lf
+* text=auto

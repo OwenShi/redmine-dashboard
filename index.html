@@ -86,6 +86,9 @@
   ::-webkit-scrollbar-track { background: transparent; }
   button, input, select { font: inherit; color: inherit; }
   button { -webkit-tap-highlight-color: transparent; }
+  /* 隐藏 search 输入框原生清除按钮（与自定义 ✕ 重复，触屏易误触） */
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
   .num { font-variant-numeric: tabular-nums; }
   .mono { font-family: var(--mono); }
@@ -497,7 +500,7 @@
   .modal {
     width: min(560px, 100%); max-height: 82vh; overflow: auto;
     background: var(--surface-2); border: 1px solid var(--line);
-    border-radius: 14px; box-shadow: var(--shadow-lg); padding: 18px 20px 16px;
+    border-radius: 14px; box-shadow: var(--shadow-lg); padding: 18px 20px 4px;
   }
   .modal-head { display: flex; align-items: center; gap: 10px; }
   .modal-head .ic { color: var(--teal); }
@@ -513,9 +516,9 @@
   .ci-pill.ci-loading { color: var(--dim); }
   .ci-pill .ic { width: 11px; height: 11px; }
   .modal-close {
-    flex-shrink: 0; width: 26px; height: 26px; display: grid; place-items: center;
-    border: 0; border-radius: 6px; background: transparent; color: var(--mute);
-    font-size: 17px; line-height: 1; cursor: pointer;
+    flex-shrink: 0; width: 34px; height: 34px; display: grid; place-items: center;
+    border: 0; border-radius: 8px; background: transparent; color: var(--mute);
+    font-size: 24px; line-height: 1; cursor: pointer;
   }
   .modal-close:hover { color: var(--text); background: var(--surface-3); }
   .modal-meta {
@@ -545,7 +548,11 @@
     padding: 26px 0; display: flex; justify-content: center; align-items: center; gap: 8px;
     color: var(--mute); font-size: 12.5px; text-align: center;
   }
-  .modal-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .modal-foot {
+    display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;
+    position: sticky; bottom: 0; padding: 12px 0;
+    background: var(--surface-2);
+  }
   .mm-btn {
     display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px;
     border: 1px solid var(--line); border-radius: 8px; background: transparent;
@@ -566,17 +573,31 @@
   }
   @media (max-width: 700px) {
     .container { padding: 0 16px; }
-    .header-inner { padding: 10px 16px; gap: 10px; }
+    .header-inner { padding: 8px 16px; gap: 10px; min-height: 56px; }
     .brand h1 { font-size: 15px; }
     .brand h1 span { display: none; }
     .brand-subtitle { display: none; }
     .select-wrap label { display: none; }
-    .select-wrap { padding-left: 0; }
+    .select-wrap { padding-left: 0; min-height: 40px; }
+    .select-wrap select { min-height: 40px; font-size: 13px; }
+    .icon-btn { width: 40px; height: 40px; }
+    .tab { min-height: 40px; padding: 8px 16px; font-size: 13px; }
     .toolbar { align-items: stretch; }
+    /* 触屏热区加大到 38-42px；输入框 16px 防 iOS 聚焦自动缩放 */
     .search-box { width: 100%; max-width: none; }
-    .filter-group { width: 100%; }
+    .search-box input { height: 42px; font-size: 16px; }
+    .clear-search { width: 32px; height: 32px; font-size: 20px; }
+    .filter-group { width: 100%; flex-direction: column; align-items: flex-start; gap: 6px; }
     .filter-chips { flex: 1; }
+    .filter-chip { min-height: 38px; padding: 8px 13px; font-size: 12px; }
     .toolbar-meta { width: 100%; margin-left: 0; }
+    .stat-chip { min-height: 40px; }
+    .status-col.is-collapsed .status-col-head { min-height: 42px; }
+    .mr-main { padding: 5px 10px; }
+    .ci-btn { min-width: 34px; min-height: 30px; }
+    .mr-mini { padding: 4px 9px; }
+    .mm-btn { min-height: 40px; padding: 10px 16px; }
+    .footer .m-hide { display: none; }
     .status-cols { display: grid; grid-template-columns: 1fr; }
     .status-col { padding-left: 0; border-left: 0; }
     .tl-row { flex-wrap: wrap; gap: 7px 10px; }
@@ -989,8 +1010,8 @@
   <footer class="footer">
     <span>Redmine <span x-text="overview ? overview.total : '—'"></span> 项</span>
     <span class="dot-sep">GitLab MR <span x-text="mrStatus && mrStatus.available ? mrStatus.count + ' 条' : '不可用'"></span></span>
-    <span class="dot-sep">本地缓存 60s / MR 120s</span>
-    <span class="dot-sep">每 5 分钟自动同步</span>
+    <span class="dot-sep m-hide">本地缓存 60s / MR 120s</span>
+    <span class="dot-sep m-hide">每 5 分钟自动同步</span>
   </footer>
 </div>
 

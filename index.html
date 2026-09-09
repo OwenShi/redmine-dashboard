@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Redmine 看板</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f1318'/%3E%3Crect x='1' y='1' width='30' height='30' rx='6' fill='none' stroke='%23e8a848' stroke-opacity='0.55'/%3E%3Ctext x='16' y='21' font-family='Menlo,monospace' font-size='12' font-weight='700' fill='%23e8a848' text-anchor='middle'%3ERB%3C/text%3E%3C/svg%3E">
+<!-- Alpine.js 轻量响应式框架 + collapse 插件（注意顺序：插件先于核心） -->
+<script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  /* ══════════════════════════════════════════════════════════
+     设计系统：深墨底 · 琥珀主色 · 青色 MR 流 · mono 数据账本
+     颜色只承载语义（状态/优先级/MR），不做装饰
+     ══════════════════════════════════════════════════════════ */
+  :root {
+    --bg: #0f1318;
+    --surface: #151b22;
+    --surface-2: #1a212b;
+    --surface-3: #202936;
+    --line: #242d38;
+    --line-soft: #1d242e;
+    --text: #e9edf3;
+    --dim: #9aa5b1;
+    --mute: #75808d;
+    --accent: #e8a848;          /* 琥珀：品牌 / 强调 */
+    --accent-strong: #f2bd6b;
+    --accent-soft: rgba(232,168,72,0.12);
+    --teal: #4fc0ae;            /* 青：MR / 流动状态 */
+    --teal-soft: rgba(79,192,174,0.13);
+    /* 状态 */
+    --st-new: #8a94a2;
+    --st-progress: #6aa4f8;
+    --st-reopen: #e5534b;
+    --st-feedback: #d9a94e;
+    --st-resolved: #57ab5a;
+    --st-hold: #b083f0;
+    --st-closed: #545d68;
+    --st-testable: #4cc3e0;
+    --st-mergeable: #43c59e;
+    --st-verified: #8dd69f;
+    --st-rejected: #b3594c;
+    --st-worksforme: #8a93a0;
+    --st-bizjudge: #caa16e;
+    --st-duplicated: #7e8ba3;
+    --st-accepted: #6d87b8;
+    --st-released: #4a9e50;
+    /* 优先级 */
+    --pri-low: #7d8590;
+    --pri-normal: #6aa4f8;
+    --pri-high: #d9a94e;
+    --pri-urgent: #e5534b;
+    --pri-immediate: #db6cb2;
+    /* 语义红/绿（CI、冲突） */
+    --ok: #57ab5a;
+    --ok-soft: rgba(87,171,90,0.13);
+    --bad: #e5534b;
+    --bad-soft: rgba(229,83,75,0.12);
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --radius: 9px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 6px 18px rgba(0,0,0,0.32);
+    --shadow-lg: 0 12px 32px rgba(0,0,0,0.42);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  [x-cloak] { display: none !important; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background:
+      radial-gradient(1100px 500px at 85% -10%, rgba(232,168,72,0.045), transparent 60%),
+      radial-gradient(900px 420px at 8% -6%, rgba(79,192,174,0.04), transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(232,168,72,0.28); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-track { background: transparent; }
+  button, input, select { font: inherit; color: inherit; }
+  button { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--mono); }
+
+  .container { max-width: 1680px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── 图标 ── */
+  .ic { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .ic-s { width: 11px; height: 11px; }
+  .ic-warn { color: var(--bad); }
+  .ic-chat { color: var(--pri-high); }
+
+  /* ════════════ 顶部栏 ════════════ */
+  .header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(15,19,24,0.88);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .header-inner {
+    max-width: 1680px; margin: 0 auto; min-height: 64px; padding: 10px 32px;
+    display: grid; grid-template-columns: minmax(240px, 1fr) auto minmax(240px, 1fr);
+    align-items: center; gap: 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .brand-mark {
+    width: 34px; height: 34px; display: grid; place-items: center; flex-shrink: 0;
+    border: 1px solid rgba(232,168,72,0.4); border-radius: 8px;
+    background: var(--accent-soft); color: var(--accent-strong);
+    font: 700 11px/1 var(--mono); letter-spacing: 0.5px;
+  }
+  .brand-copy { min-width: 0; }
+  .brand h1 { font-size: 16px; font-weight: 650; letter-spacing: -0.2px; white-space: nowrap; }
+  .brand h1 span { color: var(--mute); font-weight: 400; font-size: 12.5px; margin-left: 7px; }
+  .brand-subtitle { margin-top: 2px; color: var(--mute); font-size: 11px; letter-spacing: 0.05em; }
+
+  .tabs {
+    display: flex; gap: 3px; padding: 3px;
+    background: var(--surface); border: 1px solid var(--line-soft); border-radius: 9px;
+  }
+  .tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    min-height: 32px; padding: 6px 14px; border: 0; border-radius: 6px;
+    background: none; cursor: pointer; color: var(--dim); font-size: 12.5px; font-weight: 550;
+    transition: color 0.15s, background 0.15s;
+  }
+  .tab .ic { width: 13px; height: 13px; }
+  .tab.active { background: var(--accent); color: #211708; }
+  .tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.05); }
+
+  .controls { justify-self: end; display: flex; align-items: center; gap: 8px; }
+  .select-wrap {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 34px;
+    padding-left: 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  }
+  .select-wrap label { color: var(--mute); font-size: 11.5px; user-select: none; }
+  .select-wrap select {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    min-height: 32px; padding: 4px 26px 4px 2px; font-size: 12.5px; color: var(--text);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%239aa5b1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M3 4.8 6 8l3-3.2'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+  }
+  .select-wrap select:focus { outline: none; }
+  .select-wrap:focus-within { border-color: var(--accent); }
+  .icon-btn {
+    width: 34px; height: 34px; display: inline-grid; place-items: center; padding: 0;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+    color: var(--dim); cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .icon-btn:hover { color: var(--accent-strong); border-color: rgba(232,168,72,0.55); background: var(--accent-soft); }
+  .icon-btn:disabled { opacity: 0.45; cursor: wait; }
+  .icon-btn .ic.spin { animation: spin 0.9s linear infinite; }
+  .ic.spin { animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ════════════ 统计条 ════════════ */
+  .stats-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; padding: 22px 0 16px; }
+  .stat-hero {
+    display: flex; flex-direction: column; justify-content: center; min-width: 150px;
+    padding: 12px 18px; border: 1px solid rgba(232,168,72,0.32); border-radius: var(--radius);
+    background: linear-gradient(160deg, rgba(232,168,72,0.10), rgba(232,168,72,0.02));
+  }
+  .stat-hero .num { font-family: var(--mono); font-size: 30px; font-weight: 700; line-height: 1.05; color: var(--accent-strong); }
+  .stat-hero .label { margin-top: 4px; font-size: 11px; color: var(--dim); letter-spacing: 0.04em; }
+  .stat-group { display: flex; gap: 6px; flex-wrap: wrap; align-content: center; }
+  .stat-chip {
+    display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 7px 11px;
+    border: 1px solid var(--line-soft); border-radius: 8px; background: var(--surface);
+    font-size: 12px; color: var(--dim);
+    transition: border-color 0.15s;
+  }
+  .stat-chip:hover { border-color: var(--line); }
+  .stat-chip b { color: var(--text); font-weight: 600; }
+  .stat-chip .num { font-family: var(--mono); color: var(--text); font-weight: 600; }
+  .stat-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--st-new)); flex-shrink: 0; }
+  .stat-side { margin-left: auto; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 4px; }
+  .mr-stat { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--dim); }
+  .mr-stat .ic { width: 13px; height: 13px; color: var(--teal); }
+  .mr-stat b { font-family: var(--mono); color: var(--text); font-weight: 600; }
+  .mr-stat .bad b { color: var(--bad); }
+  .sync-note { color: var(--mute); font-size: 11px; font-family: var(--mono); white-space: nowrap; }
+
+  /* ── MR 不可用提示 ── */
+  .mr-warn {
+    display: flex; align-items: center; gap: 10px; margin: 4px 0 14px;
+    padding: 9px 13px; border: 1px solid rgba(217,169,78,0.4); border-radius: 8px;
+    background: rgba(217,169,78,0.07); color: var(--dim); font-size: 12px;
+  }
+  .mr-warn .ic { color: var(--pri-high); }
+  .mr-warn p { flex: 1; min-width: 0; word-break: break-word; }
+  .mr-warn button {
+    flex-shrink: 0; padding: 4px 10px; border: 1px solid rgba(217,169,78,0.5); border-radius: 6px;
+    background: transparent; color: var(--pri-high); font-size: 11.5px; cursor: pointer;
+  }
+  .mr-warn button:hover { background: rgba(217,169,78,0.12); }
+
+  /* ════════════ 工具栏 ════════════ */
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-height: 62px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+  .search-box { position: relative; flex: 1; min-width: 220px; max-width: 380px; }
+  .search-box .ic { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--mute); pointer-events: none; }
+  .search-box input {
+    width: 100%; height: 36px; padding: 8px 32px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface); color: var(--text); font-size: 13px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .search-box input::placeholder { color: var(--mute); }
+  .search-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .clear-search {
+    position: absolute; top: 50%; right: 7px; width: 22px; height: 22px; transform: translateY(-50%);
+    display: grid; place-items: center; border: 0; border-radius: 5px;
+    background: transparent; color: var(--mute); cursor: pointer; font-size: 15px; line-height: 1;
+  }
+  .clear-search:hover { color: var(--text); background: var(--surface-3); }
+  .filter-group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .filter-label { color: var(--mute); font-size: 11px; white-space: nowrap; }
+  .filter-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+  .filter-chip {
+    min-height: 30px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 6px;
+    background: transparent; color: var(--dim); font-size: 11.5px; cursor: pointer;
+    transition: all 0.15s; user-select: none;
+  }
+  .filter-chip:hover { border-color: var(--accent); color: var(--text); }
+  .filter-chip.active { border-color: rgba(232,168,72,0.6); background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+  .toolbar-meta { margin-left: auto; color: var(--mute); font-size: 11px; font-family: var(--mono); white-space: nowrap; }
+  .toolbar-meta b { color: var(--dim); font-weight: 500; }
+
+  /* ════════════ 版本区块 ════════════ */
+  .main { padding: 6px 0 56px; }
+  .version-block { border-bottom: 1px solid var(--line-soft); }
+  .version-block:last-child { border-bottom: 0; }
+  .version-head {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 20px 0 13px; border: 0; background: transparent; color: var(--text);
+    text-align: left; cursor: pointer; user-select: none;
+  }
+  .version-head:hover .v-name { color: var(--accent-strong); }
+  .version-head .chev { color: var(--mute); font-size: 11px; transition: transform 0.18s; }
+  .version-head.collapsed .chev { transform: rotate(-90deg); }
+  .v-name {
+    font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+    padding: 3px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+    color: var(--dim); transition: color 0.15s, border-color 0.15s;
+    max-width: 460px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .v-count { font-family: var(--mono); font-size: 11px; color: var(--mute); }
+  .v-count b { color: var(--dim); font-weight: 600; }
+  .version-body { padding: 6px 0 26px; }
+
+  /* ── 状态列 ── */
+  .status-cols { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; }
+  .status-col { flex: 1 1 240px; min-width: 0; padding-left: 15px; border-left: 1px solid var(--line-soft); }
+  .status-col:first-child { padding-left: 0; border-left: 0; }
+  .status-col-head {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px; padding: 0; border: 0; background: transparent; cursor: pointer;
+    color: var(--dim); text-align: left; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.04em;
+    transition: color 0.15s;
+  }
+  .status-col-head:hover { color: var(--text); }
+  .status-col-head .badge {
+    display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+    padding: 2px 7px; border-radius: 6px;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+    color: var(--c, var(--st-new));
+    background: color-mix(in srgb, var(--c, var(--st-new)) 13%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c, var(--st-new)) 32%, transparent);
+  }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--st-new)); flex-shrink: 0; }
+  .status-col-head .col-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .column-chevron { color: var(--mute); font-size: 11px; transition: transform 0.18s; }
+  .status-col.is-collapsed { flex: 0 0 175px; padding-left: 0; border-left: 0; }
+  .status-col.is-collapsed .status-col-head {
+    min-height: 34px; margin-bottom: 0; padding: 7px 9px;
+    border: 1px solid var(--line-soft);
+    border-radius: 7px; background: var(--surface); letter-spacing: 0.02em; font-size: 11.5px; font-weight: 600;
+  }
+  .status-col.is-collapsed .status-col-head:hover { border-color: var(--line); background: var(--surface-2); color: var(--text); }
+  .status-col.is-collapsed .column-chevron { transform: rotate(-90deg); }
+  .status-col-body { min-width: 0; }
+
+  /* ════════════ issue 卡片（中性卡片，状态由所在列表达——参考 Linear/GitHub Projects）════════════ */
+  .issue-card {
+    position: relative;
+    padding: 12px 14px; margin-bottom: 8px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius); background: var(--surface);
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+  .issue-card:hover {
+    transform: translateY(-1px);
+    border-color: var(--line);
+    background: var(--surface-2); box-shadow: var(--shadow-md);
+  }
+  .issue-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .tracker-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 5px; letter-spacing: 0.02em;
+  }
+  .tracker-tag .ic { width: 11px; height: 11px; }
+  .t-bug { background: var(--bad-soft); color: #f08a83; }
+  .t-task { background: rgba(106,164,248,0.12); color: #8db8f9; }
+  .t-feature { background: rgba(176,131,240,0.13); color: #c6a4f5; }
+  .t-patch { background: var(--ok-soft); color: #7ec480; }
+  .issue-id {
+    margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--mute);
+    text-decoration: none; padding: 2px 4px; border-radius: 4px;
+  }
+  .issue-id:hover { color: var(--accent-strong); background: var(--accent-soft); }
+  .issue-subject { font-size: 13px; line-height: 1.55; color: var(--text); word-break: break-word; }
+  .issue-meta {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 9px; font-size: 11px; color: var(--mute);
+  }
+  .issue-meta .due { display: inline-flex; align-items: center; gap: 4px; }
+  .issue-meta .due .ic { width: 11px; height: 11px; }
+  .prio { font-weight: 600; font-size: 11px; }
+
+  /* ════════════ 状态色映射（状态名 class → --c，统计点/列头角标/卡片边条共用）════════════ */
+  .st-New { --c: var(--st-new); }
+  .st-In-Progress, .st-In_Progress { --c: var(--st-progress); }
+  .st-Reopened { --c: var(--st-reopen); }
+  .st-Feedback { --c: var(--st-feedback); }
+  .st-On-Hold, .st-On_Hold { --c: var(--st-hold); }
+  .st-Resolved { --c: var(--st-resolved); }
+  .st-Verified { --c: var(--st-verified); }
+  .st-Rejected { --c: var(--st-rejected); }
+  .st-Closed { --c: var(--st-closed); }
+  .st-Testable { --c: var(--st-testable); }
+  .st-Mergeable { --c: var(--st-mergeable); }
+  .st-Worksforme { --c: var(--st-worksforme); }
+  .st-Business-Judgement { --c: var(--st-bizjudge); }
+  .st-Duplicated { --c: var(--st-duplicated); }
+  .st-Accepted_unscheduled { --c: var(--st-accepted); }
+  .st-Accepted_scheduled { --c: var(--st-accepted); }
+  .st-Released { --c: var(--st-released); }
+  .prio-Low { color: var(--pri-low); }
+  .prio-Normal { color: var(--pri-normal); }
+  .prio-High { color: var(--pri-high); }
+  .prio-Urgent { color: var(--pri-urgent); }
+  .prio-Immediate { color: var(--pri-immediate); }
+  .due-overdue { color: var(--pri-urgent); font-weight: 600; }
+  .due-soon { color: var(--pri-high); }
+  .done-num { margin-left: auto; font-family: var(--mono); color: var(--dim); }
+  .progress { margin-top: 9px; height: 3px; border-radius: 2px; background: var(--line-soft); overflow: hidden; }
+  .progress i { display: block; height: 100%; border-radius: 2px; background: var(--st-progress); transition: width 0.3s; }
+  .progress i.done { background: var(--st-resolved); }
+
+  /* ════════════ MR 徽标（merge token）════════════ */
+  .mr-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .mr-chip {
+    display: inline-flex; align-items: stretch;
+    border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2);
+    overflow: hidden; transition: border-color 0.15s;
+  }
+  .mr-main {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 8px; border: 0; background: transparent; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    transition: color 0.15s, background 0.15s;
+  }
+  .mr-main:hover { background: rgba(255,255,255,0.04); }
+  .mr-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .mr-state { font-family: var(--sans); font-size: 10.5px; opacity: 0.85; }
+  .mr-chip.mr-open { border-color: rgba(79,192,174,0.4); }
+  .mr-chip.mr-open .mr-main { color: var(--teal); }
+  .mr-chip.mr-open .mr-main:hover { background: var(--teal-soft); }
+  .mr-chip.mr-draft { border-style: dashed; }
+  .mr-chip.mr-draft .mr-main { color: var(--mute); }
+  .mr-chip.mr-merged { border-color: rgba(87,171,90,0.45); background: var(--ok-soft); }
+  .mr-chip.mr-merged .mr-main { color: #7ec480; }
+  .mr-chip.mr-closed { opacity: 0.75; }
+  .mr-chip.mr-closed .mr-main { color: var(--mute); text-decoration: line-through; text-decoration-color: rgba(102,113,126,0.6); }
+  .mr-chip.mr-closed .mr-state { text-decoration: line-through; }
+  .mr-chip.mr-locked { border-color: rgba(217,169,78,0.4); }
+  .mr-chip.mr-locked .mr-main { color: var(--pri-high); }
+  button.mr-chip.mr-more {
+    display: inline-flex; align-items: center; padding: 3px 9px;
+    background: transparent; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; color: var(--mute);
+    transition: color 0.15s, border-color 0.15s;
+  }
+  button.mr-chip.mr-more:hover { color: var(--text); border-color: var(--line); }
+  .mr-chip.has-discussions { border-color: rgba(217,169,78,0.55); }
+  .mr-chip.has-conflict { border-color: rgba(229,83,75,0.55); }
+  .ci-btn {
+    display: inline-flex; align-items: center; gap: 3px; min-width: 27px; padding: 3px 7px;
+    border: 0; border-left: 1px solid var(--line); background: transparent;
+    font-family: var(--mono); font-size: 10px; color: var(--mute); cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+  .ci-btn:hover { color: var(--accent-strong); background: var(--accent-soft); }
+  .ci-btn.ci-passed { color: var(--ok); }
+  .ci-btn.ci-failed { color: var(--bad); }
+  .ci-btn.ci-running { color: var(--pri-high); }
+  .ci-btn.ci-running .ic { animation: spin 1.1s linear infinite; }
+  .ci-btn .ic { width: 12px; height: 12px; }
+
+  /* ════════════ 近期动态 ════════════ */
+  .tl-block { border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface); overflow: hidden; margin-top: 18px; }
+  .tl-head {
+    display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft); background: var(--surface-2);
+  }
+  .tl-head h2 { font-size: 13.5px; font-weight: 600; }
+  .tl-head .count { font-family: var(--mono); font-size: 11px; color: var(--mute); }
+  .tl-head .sync-note { margin-left: auto; }
+  .tl-row {
+    display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 11px 18px;
+    border-bottom: 1px solid var(--line-soft); cursor: pointer;
+    transition: background 0.15s;
+  }
+  .tl-row:hover { background: var(--surface-2); }
+  .tl-row:last-child { border-bottom: 0; }
+  .tl-date { font-family: var(--mono); font-size: 11.5px; color: var(--mute); min-width: 96px; }
+  .tl-id { font-family: var(--mono); font-size: 11.5px; color: var(--accent-strong); flex-shrink: 0; }
+  .tl-subject { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-mrs { display: inline-flex; gap: 5px; flex-shrink: 0; }
+  .mr-mini {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 7px; border: 1px solid var(--line); border-radius: 5px;
+    background: transparent; font-family: var(--mono); font-size: 10.5px; color: var(--dim);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .mr-mini:hover { border-color: var(--teal); color: var(--teal); }
+  .mr-mini .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .mr-mini.s-open { color: var(--teal); border-color: rgba(79,192,174,0.35); }
+  .mr-mini.s-draft { color: var(--mute); border-style: dashed; }
+  .mr-mini.s-merged { color: #7ec480; border-color: rgba(87,171,90,0.4); }
+  .mr-mini.s-closed { color: var(--mute); }
+  .mr-mini.s-discuss { color: var(--pri-high); border-color: rgba(217,169,78,0.5); }
+  .mr-mini.s-conflict { color: var(--bad); border-color: rgba(229,83,75,0.5); }
+  .tl-status { font-size: 11px; color: var(--c, var(--dim)); flex-shrink: 0; }
+
+  /* ════════════ 状态提示 ════════════ */
+  .state-msg { text-align: center; padding: 84px 20px; }
+  .state-msg .ic { width: 30px; height: 30px; color: var(--mute); opacity: 0.7; margin-bottom: 12px; }
+  .state-title { display: block; color: var(--text); font-size: 14px; font-weight: 600; }
+  .state-detail { display: block; margin-top: 5px; color: var(--mute); font-size: 12px; }
+
+  .skeleton-card {
+    height: 92px; margin-bottom: 8px; border-radius: var(--radius);
+    border: 1px solid var(--line-soft);
+    background: linear-gradient(90deg, var(--surface) 25%, var(--surface-3) 50%, var(--surface) 75%);
+    background-size: 200% 100%; animation: shimmer 1.4s infinite;
+  }
+  .skeleton-card::after {
+    content: ''; display: block; height: 10px; width: 42%; margin: 22px 0 0 16px;
+    border-radius: 5px; background: rgba(255,255,255,0.045);
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  .err-box {
+    display: flex; align-items: flex-start; gap: 11px; margin: 22px 0 0;
+    padding: 13px 15px; border: 1px solid rgba(229,83,75,0.45); border-radius: 9px;
+    background: var(--bad-soft); color: #f08a83;
+  }
+  .err-box .ic { margin-top: 2px; }
+  .err-copy { flex: 1; min-width: 0; }
+  .err-copy strong { display: block; font-size: 12.5px; }
+  .err-copy p { margin-top: 3px; color: var(--dim); font-size: 12px; word-break: break-word; font-family: var(--mono); }
+  .retry-btn {
+    flex-shrink: 0; padding: 5px 10px; border: 1px solid rgba(229,83,75,0.5); border-radius: 6px;
+    background: transparent; color: #f08a83; font-size: 11.5px; cursor: pointer;
+  }
+  .retry-btn:hover { background: rgba(229,83,75,0.12); }
+
+  .footer {
+    border-top: 1px solid var(--line-soft); padding: 16px 0 26px;
+    display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+    color: var(--mute); font-size: 11px; font-family: var(--mono);
+  }
+  .footer .dot-sep::before { content: '·'; margin: 0 6px; color: var(--line); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
+  /* ════════════ CI 详情弹窗 ════════════ */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+    background: rgba(5,8,11,0.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    padding: 18px;
+  }
+  .modal {
+    width: min(560px, 100%); max-height: 82vh; overflow: auto;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow-lg); padding: 18px 20px 16px;
+  }
+  .modal-head { display: flex; align-items: center; gap: 10px; }
+  .modal-head .ic { color: var(--teal); }
+  .modal-title { flex: 1; font-size: 14px; font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ci-pill {
+    display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+    padding: 3px 10px; border: 1px solid var(--line); border-radius: 12px;
+    font-size: 11.5px; color: var(--dim);
+  }
+  .ci-pill.ci-passed { color: var(--ok); border-color: rgba(87,171,90,0.5); background: var(--ok-soft); }
+  .ci-pill.ci-failed { color: var(--bad); border-color: rgba(229,83,75,0.5); background: var(--bad-soft); }
+  .ci-pill.ci-running { color: var(--pri-high); border-color: rgba(217,169,78,0.5); }
+  .ci-pill.ci-loading { color: var(--dim); }
+  .ci-pill .ic { width: 11px; height: 11px; }
+  .modal-close {
+    flex-shrink: 0; width: 26px; height: 26px; display: grid; place-items: center;
+    border: 0; border-radius: 6px; background: transparent; color: var(--mute);
+    font-size: 17px; line-height: 1; cursor: pointer;
+  }
+  .modal-close:hover { color: var(--text); background: var(--surface-3); }
+  .modal-meta {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px;
+    margin: 14px 0 12px; padding: 12px 14px;
+    border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surface);
+  }
+  .mm { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .mm-k { font-size: 10.5px; color: var(--mute); letter-spacing: 0.04em; }
+  .mm-v { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-jobs { display: flex; flex-direction: column; gap: 4px; }
+  .job-row {
+    display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+    border: 1px solid var(--line-soft); border-radius: 8px;
+    text-decoration: none; color: var(--dim); font-size: 12px;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .job-row:hover { background: var(--surface); border-color: var(--line); color: var(--text); }
+  .job-row.job-ok .ic { color: var(--ok); }
+  .job-row.job-fail { border-color: rgba(229,83,75,0.38); }
+  .job-row.job-fail .ic { color: var(--bad); }
+  .job-row.job-run .ic { color: var(--pri-high); }
+  .job-stage { font-size: 10.5px; color: var(--mute); min-width: 64px; flex-shrink: 0; }
+  .job-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .job-dur { font-size: 11px; color: var(--mute); flex-shrink: 0; }
+  .jobs-empty {
+    padding: 26px 0; display: flex; justify-content: center; align-items: center; gap: 8px;
+    color: var(--mute); font-size: 12.5px; text-align: center;
+  }
+  .modal-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .mm-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px;
+    border: 1px solid var(--line); border-radius: 8px; background: transparent;
+    color: var(--dim); font-size: 12px; cursor: pointer; text-decoration: none;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .mm-btn:hover { color: var(--text); border-color: var(--accent); }
+  .mm-btn.primary { border-color: rgba(79,192,174,0.5); color: var(--teal); }
+  .mm-btn.primary:hover { background: var(--teal-soft); }
+  .mm-btn:disabled { opacity: 0.5; cursor: wait; }
+
+  /* ════════════ 响应式 ════════════ */
+  @media (max-width: 980px) {
+    .header-inner { grid-template-columns: minmax(0, 1fr) auto; }
+    .tabs { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+    .controls { grid-column: 2; grid-row: 1; }
+    .stat-side { margin-left: 0; align-items: flex-start; }
+  }
+  @media (max-width: 700px) {
+    .container { padding: 0 16px; }
+    .header-inner { padding: 10px 16px; gap: 10px; }
+    .brand h1 { font-size: 15px; }
+    .brand h1 span { display: none; }
+    .brand-subtitle { display: none; }
+    .select-wrap label { display: none; }
+    .select-wrap { padding-left: 0; }
+    .toolbar { align-items: stretch; }
+    .search-box { width: 100%; max-width: none; }
+    .filter-group { width: 100%; }
+    .filter-chips { flex: 1; }
+    .toolbar-meta { width: 100%; margin-left: 0; }
+    .status-cols { display: grid; grid-template-columns: 1fr; }
+    .status-col { padding-left: 0; border-left: 0; }
+    .tl-row { flex-wrap: wrap; gap: 7px 10px; }
+    .tl-date { min-width: 88px; }
+    .tl-subject { order: 3; flex-basis: 100%; white-space: normal; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body x-data="dashboard()" x-init="init()" @keydown.window="globalKeys($event)">
+
+<!-- ══ SVG 图标库（内联 sprite，零依赖）══ -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.8 8.7A9 9 0 1 1 3 12"/><path d="M3 3.5v5.2h5.2"/><path d="M12 7.5V12l3.2 2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-13.66 5.66L4 15.5"/><path d="M4 20.5v-5h5"/><path d="M4 12a8 8 0 0 1 13.66-5.66L20 8.5"/><path d="M20 3.5v5h-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="15" rx="2.5"/><path d="M4 10.5h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
+  <symbol id="i-mr" viewBox="0 0 24 24"><circle cx="6.5" cy="5.5" r="2.5"/><circle cx="6.5" cy="18.5" r="2.5"/><path d="M6.5 8v8"/><path d="M6.5 13.5h6a4.5 4.5 0 0 1 4.5 4.5v.5"/><path d="M14.5 15.5 17 18l2.5-2.5"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><circle cx="12" cy="14" r="5"/><path d="M12 9V6M9.5 4l1.2 2.2M14.5 4l-1.2 2.2M4.5 12.5H7M17 12.5h2.5M6 19l1.9-1.9M18 19l-1.9-1.9M6 9l1.9 1.9M18 9l-1.9 1.9"/></symbol>
+  <symbol id="i-task" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.5 12.5l2.5 2.5 5-5.5"/></symbol>
+  <symbol id="i-feature" viewBox="0 0 24 24"><path d="M12 3.5l2 5.3 5.5 2-5.5 2-2 5.2-2-5.2-5.5-2 5.5-2z"/></symbol>
+  <symbol id="i-patch" viewBox="0 0 24 24"><path d="M13.6 6.6a4.3 4.3 0 0 0-5.8 5L3.6 15.8a1.9 1.9 0 1 0 2.7 2.7l4.2-4.2a4.3 4.3 0 0 0 5-5.8l-2.5 2.5-2.3-.6-.6-2.3z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5L19.5 7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-clockrun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-dash" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 2.8 20h18.4z"/><path d="M12 10.5v4"/><path d="M12 17.3v.2"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 5H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3v3.2L11.8 16H20a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13.5 6.5 5h11L20 13.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19z"/><path d="M4 13.5h4.5l1 2.5h5l1-2.5H20"/></symbol>
+</svg>
+
+<!-- ══ 顶部栏 ══ -->
+<div class="header">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">RB</span>
+      <div class="brand-copy">
+        <h1>Redmine 看板<span x-text="user ? '· ' + user.name : ''"></span></h1>
+        <div class="brand-subtitle">个人工作队列 · Issue + MR</div>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" :class="tab==='board' ? 'active' : ''" role="tab" :aria-selected="tab==='board'" @click="switchTab('board')">
+        <svg class="ic"><use href="#i-grid"/></svg>看板
+      </button>
+      <button class="tab" :class="tab==='recent' ? 'active' : ''" role="tab" :aria-selected="tab==='recent'" @click="switchTab('recent')">
+        <svg class="ic"><use href="#i-history"/></svg>近期动态
+      </button>
+    </div>
+
+    <div class="controls">
+      <template x-if="tab==='board'">
+        <div class="select-wrap">
+          <label for="scope-select">显示</label>
+          <select id="scope-select" x-model="statusScope" @change="onScopeChange()">
+            <option value="open">进行中</option>
+            <option value="*">全部</option>
+            <option value="closed">已关闭</option>
+          </select>
+        </div>
+      </template>
+      <template x-if="tab==='recent'">
+        <div class="select-wrap">
+          <label for="days-select">时间</label>
+          <select id="days-select" x-model="recentDays" @change="onDaysChange()">
+            <option value="3">近 3 天</option>
+            <option value="7">近 7 天</option>
+            <option value="14">近 14 天</option>
+            <option value="30">近 30 天</option>
+          </select>
+        </div>
+      </template>
+      <button class="icon-btn" type="button" title="重新同步（每 5 分钟自动同步）" aria-label="重新同步" @click="refreshAll(true)" :disabled="loading">
+        <svg class="ic" :class="syncing && 'spin'"><use href="#i-refresh"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ══ 统计条（仅看板）══ -->
+  <template x-if="tab==='board' && overview">
+    <div class="stats-bar">
+      <div class="stat-hero">
+        <div class="num" x-text="overview.total"></div>
+        <div class="label" x-text="statusScope==='open' ? '进行中' : (statusScope==='closed' ? '已关闭' : '总计')"></div>
+      </div>
+      <div class="stat-group">
+        <template x-for="(count, st) in overview.statusCount" :key="st">
+          <div class="stat-chip" :class="'st-' + st.replace(/\s+/g,'-')" :title="st">
+            <span class="stat-dot"></span>
+            <span class="num" x-text="count"></span>
+            <span x-text="st"></span>
+          </div>
+        </template>
+      </div>
+      <div class="stat-side" x-show="mrStats" x-cloak>
+        <span class="mr-stat" x-show="mrStats && (mrStats.opened || mrStats.draft)">
+          <svg class="ic"><use href="#i-mr"/></svg>
+          <span x-show="mrStats && mrStats.opened">待合并 <b x-text="mrStats?.opened ?? 0"></b></span>
+          <span x-show="mrStats && mrStats.draft">草稿 <b x-text="mrStats?.draft ?? 0"></b></span>
+        </span>
+        <span class="mr-stat bad" x-show="mrStats && mrStats.conflicts">
+          <svg class="ic" style="color:var(--bad)"><use href="#i-warn"/></svg>
+          冲突 <b x-text="mrStats?.conflicts ?? 0"></b>
+        </span>
+        <span class="mr-stat" x-show="mrStats && mrStats.discussions">
+          <svg class="ic" style="color:var(--pri-high)"><use href="#i-chat"/></svg>
+          未解决讨论 <b x-text="mrStats?.discussions ?? 0"></b>
+        </span>
+        <span class="sync-note" x-text="syncLabel"></span>
+      </div>
+    </div>
+  </template>
+
+  <!-- ══ MR 不可用提示 ══ -->
+  <template x-if="mrStatus && mrStatus.available === false">
+    <div class="mr-warn" role="status">
+      <svg class="ic"><use href="#i-warn"/></svg>
+      <p>MR 状态不可用：<span x-text="mrStatus.error || '未知原因'"></span></p>
+      <button type="button" @click="loadMrs(true)">重试</button>
+    </div>
+  </template>
+
+  <!-- ══ 工具栏（仅看板）══ -->
+  <template x-if="tab==='board' && overview">
+    <div class="toolbar">
+      <div class="search-box">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <label class="sr-only" for="search-input">搜索编号或标题</label>
+        <input id="search-input" x-ref="search" type="search" autocomplete="off"
+               placeholder="搜索编号或标题…（按 / 聚焦）" x-model="search" @keydown.escape="search=''">
+        <button class="clear-search" type="button" title="清除搜索" aria-label="清除搜索" x-show="search" x-cloak @click="search=''">×</button>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">类型</span>
+        <div class="filter-chips">
+          <template x-for="tr in Object.keys(overview.trackerCount)" :key="tr">
+            <button class="filter-chip" type="button" :class="filterTracker===tr ? 'active' : ''" @click="toggleTracker(tr)" x-text="tr"></button>
+          </template>
+          <button class="filter-chip" type="button" :class="filterTracker==='*' ? 'active' : ''" @click="filterTracker='*'">全部</button>
+        </div>
+      </div>
+      <div class="toolbar-meta">
+        <b class="num" x-text="totalFiltered"></b> / <span x-text="overview.total"></span> 项可见
+        <span x-show="mrLinkedCount" x-cloak>· <b x-text="mrLinkedCount"></b> 项挂 MR</span>
+      </div>
+    </div>
+  </template>
+
+  <div class="main">
+    <!-- ══ 错误 ══ -->
+    <template x-if="error">
+      <div class="err-box" role="alert">
+        <svg class="ic"><use href="#i-warn"/></svg>
+        <div class="err-copy">
+          <strong>数据加载失败</strong>
+          <p x-text="error"></p>
+        </div>
+        <button class="retry-btn" type="button" @click="tab==='board' ? loadOverview(true) : loadRecent(true)">重试</button>
+      </div>
+    </template>
+
+    <!-- ══════════ 看板视图 ══════════ -->
+    <template x-if="tab==='board'">
+      <div>
+        <!-- 骨架屏 -->
+        <template x-if="loading && !overview">
+          <div class="version-block" style="border:0">
+            <div class="status-cols">
+              <template x-for="i in 4" :key="i">
+                <div class="status-col">
+                  <div class="status-col-head"><span class="badge" style="--c:#66717e"><span class="badge-dot"></span>·</span><span>加载中</span></div>
+                  <template x-for="j in 3" :key="j"><div class="skeleton-card"></div></template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- 版本区块 -->
+        <template x-if="overview">
+          <template x-for="(statuses, versionName) in filteredGrouped" :key="versionName">
+            <div class="version-block">
+              <button class="version-head" :class="collapsed[versionName] ? 'collapsed' : ''" type="button"
+                      :aria-expanded="!collapsed[versionName]" @click="toggleCollapse(versionName)">
+                <span class="chev" aria-hidden="true">▼</span>
+                <h2 class="v-name" x-text="versionName" :title="versionName"></h2>
+                <span class="v-count"><b class="num" x-text="versionItemCount(statuses)"></b> 项</span>
+              </button>
+              <div class="version-body" x-show="!collapsed[versionName]" x-collapse>
+                <template x-if="!collapsed[versionName]">
+                  <div class="status-cols">
+                    <template x-for="(issues, statusName) in statuses" :key="statusName">
+                      <div class="status-col" :class="['st-' + statusName.replace(/\s+/g,'-'), isColumnOpen(versionName, statusName, issues) ? '' : 'is-collapsed']">
+                        <button class="status-col-head" type="button"
+                                :aria-expanded="isColumnOpen(versionName, statusName, issues)"
+                                @click="toggleColumn(versionName, statusName)">
+                          <span class="badge"><span class="badge-dot" aria-hidden="true"></span><span class="num" x-text="issues.length"></span></span>
+                          <span class="col-name" x-text="statusName"></span>
+                          <span class="column-chevron" aria-hidden="true">⌄</span>
+                        </button>
+                        <div class="status-col-body" x-show="isColumnOpen(versionName, statusName, issues)" x-collapse>
+                          <template x-if="isColumnOpen(versionName, statusName, issues)">
+                            <div>
+                              <template x-for="issue in issues" :key="issue.id">
+                                <div class="issue-card" :class="'st-' + issue.status.replace(/\s+/g,'-')"
+                                     role="link" tabindex="0" :title="'打开 Redmine #' + issue.id"
+                                     @click="openUrl(issue.url)" @keydown.enter.prevent="openUrl(issue.url)">
+                                  <div class="issue-top">
+                                    <span class="tracker-tag" :class="trackerClass(issue.tracker)">
+                                      <svg class="ic"><use :href="trackerIcon(issue.tracker)"/></svg>
+                                      <span x-text="issue.tracker"></span>
+                                    </span>
+                                    <span class="prio" :class="'prio-'+issue.priority" x-text="issue.priority"></span>
+                                    <a class="issue-id num" :href="issue.url" target="_blank" rel="noreferrer" @click.stop x-text="'#' + issue.id"></a>
+                                  </div>
+                                  <div class="issue-subject" x-text="issue.subject"></div>
+                                  <div class="issue-meta">
+                                    <template x-if="issue.due_date">
+                                      <span class="due" :class="dueClass(issue.due_date)">
+                                        <svg class="ic"><use href="#i-cal"/></svg>
+                                        <span class="num" x-text="formatDate(issue.due_date)"></span>
+                                      </span>
+                                    </template>
+                                    <span>更新 <span x-text="formatDate(issue.updated_on)"></span></span>
+                                    <span class="done-num num" x-text="issue.done_ratio + '%'"></span>
+                                  </div>
+                                  <div class="progress">
+                                    <i :class="issue.done_ratio>=100 ? 'done' : ''" :style="`width:${issue.done_ratio}%`"></i>
+                                  </div>
+                                  <div class="mr-row" x-show="mrsFor(issue).length" x-cloak>
+                                    <template x-for="mr in visibleMrs(issue)" :key="mr.project_id + '!' + mr.iid">
+                                      <div class="mr-chip" :class="mrChipClass(mr)">
+                                        <button class="mr-main" type="button" @click.stop="openUrl(mr.web_url)" :title="mrTitle(mr)">
+                                          <span class="mr-dot" aria-hidden="true"></span>
+                                          <span class="num" x-text="'!' + mr.iid"></span>
+                                          <span class="mr-state" x-text="mrLabel(mr)"></span>
+                                          <svg class="ic ic-s ic-chat" x-show="mr.has_unresolved_discussions" title="有未解决讨论"><use href="#i-chat"/></svg>
+                                          <svg class="ic ic-s ic-warn" x-show="mr.has_conflicts" title="存在冲突"><use href="#i-warn"/></svg>
+                                        </button>
+                                        <button class="ci-btn" type="button" x-show="mr.state==='opened'"
+                                                :class="ciClass(mr)" :title="ciTitle(mr)"
+                                                @click.stop="onCiClick(mr)" x-html="ciContent(mr)"></button>
+                                      </div>
+                                    </template>
+                                    <button class="mr-chip mr-more" type="button" x-show="mrsFor(issue).length > 4"
+                                            @click.stop="toggleMrExpand(issue)"
+                                            :title="mrExpanded[issue.id] ? '收起' : '展开其余 ' + hiddenMrCount(issue) + ' 个 MR'"
+                                            x-text="mrExpanded[issue.id] ? '收起' : '+' + hiddenMrCount(issue)"></button>
+                                  </div>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </template>
+
+        <!-- 空状态 -->
+        <template x-if="overview && totalFiltered===0">
+          <div class="state-msg">
+            <svg class="ic"><use href="#i-inbox"/></svg>
+            <template x-if="overview.total===0">
+              <div>
+                <span class="state-title">当前范围没有任务</span>
+                <span class="state-detail">切换右上角的状态范围后再试</span>
+              </div>
+            </template>
+            <template x-if="overview.total>0">
+              <div>
+                <span class="state-title">没有匹配的任务</span>
+                <span class="state-detail">清除搜索或切换类型筛选</span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- ══════════ 近期动态 ══════════ -->
+    <template x-if="tab==='recent'">
+      <div>
+        <template x-if="loading && !recent">
+          <div>
+            <div class="skeleton-card" style="height:56px"></div>
+            <div class="skeleton-card" style="height:56px"></div>
+            <div class="skeleton-card" style="height:56px"></div>
+          </div>
+        </template>
+        <template x-if="recent">
+          <div class="tl-block">
+            <div class="tl-head">
+              <h2>近 <span class="num" x-text="recent.days"></span> 天更新</h2>
+              <span class="count"><span class="num" x-text="recent.total"></span> 项</span>
+              <span class="sync-note" x-text="syncLabel"></span>
+            </div>
+            <template x-for="issue in recent.issues" :key="issue.id">
+              <div class="tl-row" role="link" tabindex="0" :title="'打开 Redmine #' + issue.id"
+                   @click="openUrl(issue.url)" @keydown.enter.prevent="openUrl(issue.url)">
+                <span class="tl-date num" x-text="formatDateTime(issue.updated_on)"></span>
+                <span class="tracker-tag" :class="trackerClass(issue.tracker)">
+                  <svg class="ic"><use :href="trackerIcon(issue.tracker)"/></svg>
+                  <span x-text="issue.tracker"></span>
+                </span>
+                <span class="tl-id num" x-text="'#' + issue.id"></span>
+                <span class="tl-subject" x-text="issue.subject"></span>
+                <span class="tl-mrs" x-show="mrsFor(issue).length" x-cloak>
+                  <template x-for="mr in recentMrs(issue)" :key="mr.project_id + '!' + mr.iid">
+                    <button class="mr-mini num" type="button" :class="mrMiniClass(mr)" :title="mrTitle(mr)"
+                            @click.stop="openUrl(mr.web_url)" x-text="'!' + mr.iid"></button>
+                  </template>
+                  <span class="mr-mini" x-show="mrsFor(issue).length > 3" :title="'还有 ' + (mrsFor(issue).length - 3) + ' 个 MR'" x-text="'+' + (mrsFor(issue).length - 3)"></span>
+                </span>
+                <span class="tl-status" :class="'st-' + issue.status.replace(/\s+/g,'-')" x-text="issue.status"></span>
+              </div>
+            </template>
+            <template x-if="recent.total===0">
+              <div class="state-msg">
+                <svg class="ic"><use href="#i-inbox"/></svg>
+                <span class="state-title">该时间段内没有更新</span>
+                <span class="state-detail">调整右上角的时间范围后再试</span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+
+  <!-- ══ CI 详情弹窗 ══ -->
+  <div class="modal-overlay" x-show="ciModal" x-cloak @click.self="closeCiModal()" @keydown.escape.window="ciModal && closeCiModal()">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="CI 流水线详情">
+      <template x-if="ciModal">
+        <div>
+          <div class="modal-head">
+            <svg class="ic"><use href="#i-mr"/></svg>
+            <span class="modal-title"><span class="mono" x-text="'!' + ciModal.mr.iid"></span>&nbsp;CI 详情</span>
+            <span class="ci-pill" :class="ciClass(ciModal.mr)">
+              <svg class="ic" x-show="ciModal.st && ciModal.st.loading"><use href="#i-clockrun"/></svg>
+              <span x-text="ciStateLabel(ciModal.st)"></span>
+            </span>
+            <button class="modal-close" type="button" aria-label="关闭" @click="closeCiModal()">×</button>
+          </div>
+
+          <div class="modal-meta" x-show="ciModal.st && ciModal.st.kind !== 'none'">
+            <template x-if="ciModal.st && ciModal.st.duration">
+              <div class="mm"><span class="mm-k">用时</span><span class="mm-v num" x-text="formatDuration(ciModal.st.duration)"></span></div>
+            </template>
+            <template x-if="ciModal.st && ciModal.st.finishedAt">
+              <div class="mm"><span class="mm-k">完成于</span><span class="mm-v num" x-text="formatDateTime(ciModal.st.finishedAt)"></span></div>
+            </template>
+            <template x-if="ciModal.st && ciModal.st.ref">
+              <div class="mm"><span class="mm-k">流水线</span><span class="mm-v mono" x-text="ciModal.st.ref"></span></div>
+            </template>
+            <template x-if="ciModal.st && ciModal.st.sha">
+              <div class="mm"><span class="mm-k">Commit</span><span class="mm-v mono" x-text="String(ciModal.st.sha).slice(0, 8)"></span></div>
+            </template>
+          </div>
+
+          <div class="modal-jobs">
+            <template x-if="ciModal.st && ciModal.st.kind === 'none'">
+              <div class="jobs-empty">该 MR 没有流水线</div>
+            </template>
+            <template x-if="ciModal.st && ciModal.st.kind !== 'none' && ciModal.loadingJobs">
+              <div class="jobs-empty"><svg class="ic spin"><use href="#i-clockrun"/></svg>加载 job 列表…</div>
+            </template>
+            <template x-if="ciModal.st && ciModal.st.kind !== 'none' && !ciModal.loadingJobs && ciModal.jobsError">
+              <div class="jobs-empty">job 列表加载失败：<span x-text="ciModal.jobsError"></span></div>
+            </template>
+            <template x-if="ciModal.st && ciModal.st.kind !== 'none' && !ciModal.loadingJobs && !ciModal.jobsError && ciModal.jobs.length">
+              <template x-for="job in ciModal.jobs" :key="job.id">
+                <a class="job-row" :class="jobStatusClass(job.status)" :href="job.web_url" target="_blank" rel="noreferrer"
+                   :title="job.name + (job.failure_reason ? ' · ' + job.failure_reason : '') + ' · 点击打开 job'">
+                  <svg class="ic ic-s" :class="job.status === 'running' && 'spin'"><use :href="jobIcon(job.status)"/></svg>
+                  <span class="job-stage mono" x-text="job.stage"></span>
+                  <span class="job-name" x-text="job.name"></span>
+                  <span class="job-dur num" x-text="job.duration ? formatDuration(job.duration) : ''"></span>
+                </a>
+              </template>
+            </template>
+            <template x-if="ciModal.st && ciModal.st.kind !== 'none' && !ciModal.loadingJobs && !ciModal.jobsError && !ciModal.jobs.length">
+              <div class="jobs-empty">没有 job</div>
+            </template>
+          </div>
+
+          <div class="modal-foot">
+            <button class="mm-btn" type="button" @click="refreshCi()" :disabled="ciModal.st && ciModal.st.loading">
+              <svg class="ic ic-s" :class="ciModal.st && ciModal.st.loading && 'spin'"><use href="#i-refresh"/></svg> 重新查询
+            </button>
+            <a class="mm-btn primary" x-show="ciModal.st && ciModal.st.webUrl" :href="ciModal.st.webUrl" target="_blank" rel="noreferrer">打开流水线 ↗</a>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ══ 页脚 ══ -->
+  <footer class="footer">
+    <span>Redmine <span x-text="overview ? overview.total : '—'"></span> 项</span>
+    <span class="dot-sep">GitLab MR <span x-text="mrStatus && mrStatus.available ? mrStatus.count + ' 条' : '不可用'"></span></span>
+    <span class="dot-sep">本地缓存 60s / MR 120s</span>
+    <span class="dot-sep">每 5 分钟自动同步</span>
+  </footer>
+</div>
+
+<script>
+function dashboard() {
+  return {
+    // ── 数据 ──
+    tab: 'board',
+    loading: false,
+    syncing: false,
+    error: '',
+    user: null,
+    overview: null,
+    recent: null,
+    mrs: [],
+    mrStatus: null,   // { available, error, count, fetchedAt }
+    pipelines: {},    // 'pid!iid' -> { loading, kind, status, id, ref, sha, duration, finishedAt, webUrl }
+    mrExpanded: {},   // issue.id -> 是否展开全部 MR
+    ciModal: null,    // { mr, st, jobs, loadingJobs, jobsError }
+    _mrIndex: null,
+
+    // ── 偏好（沿用旧 localStorage key，升级不丢折叠偏好）──
+    statusScope: localStorage.getItem('rb_scope') || 'open',
+    recentDays: localStorage.getItem('rb_days') || '7',
+    search: '',
+    filterTracker: '*',
+    collapsed: JSON.parse(localStorage.getItem('rb_collapsed') || '{}'),
+    collapsedColumns: JSON.parse(localStorage.getItem('rb_collapsed_columns') || '{}'),
+    defaultCollapsedStatuses: ['resolved', 'resolve', 'testable'],
+
+    async init() {
+      // user / MR 与看板主数据并行；MR 独立飞，不阻塞首屏（两段式渲染）
+      this.api('/api/user').then((u) => { this.user = u; }).catch(() => {});
+      this.loadMrs();
+      await this.loadOverview();
+      // 自动同步：每 5 分钟，仅页面可见时
+      setInterval(() => {
+        if (document.visibilityState === 'visible') this.refreshAll(true);
+      }, 300000);
+    },
+
+    switchTab(t) {
+      this.tab = t;
+      this.error = '';
+      if (t === 'recent' && !this.recent) this.loadRecent();
+    },
+
+    // ── 数据加载 ──
+    async loadOverview(force = false, silent = this.overview != null) {
+      if (!silent) this.loading = true;
+      this.error = '';
+      this.syncing = true;
+      try {
+        const q = 'status=' + encodeURIComponent(this.statusScope) + (force ? '&force=1' : '');
+        this.overview = await this.api('/api/overview?' + q);
+      } catch (e) {
+        this.error = '加载看板失败：' + e.message;
+      } finally {
+        this.loading = false;
+        this.syncing = false;
+      }
+    },
+
+    async loadRecent(force = false, silent = this.recent != null) {
+      if (!silent) this.loading = true;
+      this.error = '';
+      this.syncing = true;
+      try {
+        const q = 'days=' + this.recentDays + (force ? '&force=1' : '');
+        this.recent = await this.api('/api/recent?' + q);
+      } catch (e) {
+        this.error = '加载近期动态失败：' + e.message;
+      } finally {
+        this.loading = false;
+        this.syncing = false;
+      }
+    },
+
+    async loadMrs(force = false) {
+      try {
+        const data = await this.api('/api/mrs' + (force ? '?force=1' : ''));
+        this.mrStatus = data;
+        this.mrs = data.mrs || [];
+        this._mrIndex = null;
+      } catch (e) {
+        this.mrStatus = { available: false, error: e.message, count: 0 };
+      }
+    },
+
+    refreshAll(force) {
+      this.loadMrs(force);
+      if (this.tab === 'recent') this.loadRecent(force, true);
+      else this.loadOverview(force, true);
+    },
+
+    onScopeChange() {
+      localStorage.setItem('rb_scope', this.statusScope);
+      this.overview = null;
+      this.loadOverview();
+    },
+
+    onDaysChange() {
+      localStorage.setItem('rb_days', this.recentDays);
+      this.recent = null;
+      this.loadRecent();
+    },
+
+    async api(path) {
+      const res = await fetch(path);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      return data;
+    },
+
+    globalKeys(e) {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      this.$refs.search && this.$refs.search.focus();
+    },
+
+    // ── 筛选（计算属性）──
+    get filteredGrouped() {
+      if (!this.overview) return {};
+      const kw = this.search.trim().toLowerCase();
+      const result = {};
+      for (const [version, statuses] of Object.entries(this.overview.grouped)) {
+        const newStatuses = {};
+        for (const [status, issues] of Object.entries(statuses)) {
+          const filtered = issues.filter((i) => {
+            const tk = this.filterTracker === '*' || i.tracker === this.filterTracker;
+            const sk = !kw || String(i.subject || '').toLowerCase().includes(kw) || String(i.id).includes(kw);
+            return tk && sk;
+          });
+          if (filtered.length) newStatuses[status] = filtered;
+        }
+        if (Object.keys(newStatuses).length) result[version] = newStatuses;
+      }
+      return result;
+    },
+    get totalFiltered() {
+      return Object.values(this.filteredGrouped).reduce((s, st) => s + Object.values(st).reduce((a, b) => a + b.length, 0), 0);
+    },
+    get mrLinkedCount() {
+      let n = 0;
+      for (const statuses of Object.values(this.filteredGrouped)) {
+        for (const issues of Object.values(statuses)) {
+          for (const i of issues) if (this.mrsFor(i).length) n += 1;
+        }
+      }
+      return n;
+    },
+
+    toggleTracker(tr) { this.filterTracker = this.filterTracker === tr ? '*' : tr; },
+    toggleCollapse(v) {
+      this.collapsed[v] = !this.collapsed[v];
+      localStorage.setItem('rb_collapsed', JSON.stringify(this.collapsed));
+    },
+    columnKey(versionName, statusName) {
+      return `${versionName}::${String(statusName).trim().toLowerCase()}`;
+    },
+    isColumnCollapsed(versionName, statusName) {
+      const key = this.columnKey(versionName, statusName);
+      // 直接属性读取（GET 陷阱）：hasOwnProperty 的依赖收集不会在新增 key 时触发重渲染
+      const saved = this.collapsedColumns[key];
+      if (saved !== undefined && saved !== null) return saved;
+      return this.defaultCollapsedStatuses.includes(String(statusName).trim().toLowerCase());
+    },
+    isColumnOpen(versionName, statusName, issues) {
+      const hasSearchMatch = Boolean(this.search.trim()) && issues.length > 0;
+      return !this.isColumnCollapsed(versionName, statusName) || hasSearchMatch;
+    },
+    toggleColumn(versionName, statusName) {
+      const key = this.columnKey(versionName, statusName);
+      this.collapsedColumns[key] = !this.isColumnCollapsed(versionName, statusName);
+      localStorage.setItem('rb_collapsed_columns', JSON.stringify(this.collapsedColumns));
+    },
+    versionItemCount(statuses) {
+      return Object.values(statuses).reduce((a, b) => a + b.length, 0);
+    },
+
+    // ── MR 关联（三级匹配：分支名精确 → 标题 Refs/Fix #N → 分支数字 token）──
+    get mrIndex() {
+      if (!this._mrIndex) {
+        const byBranch = new Map();
+        const byId = new Map();
+        const put = (map, key, mr) => {
+          if (!map.has(key)) map.set(key, []);
+          map.get(key).push(mr);
+        };
+        for (const mr of this.mrs) {
+          if (mr.source_branch) put(byBranch, mr.source_branch, mr);
+          for (const id of this.mrRefIds(mr)) put(byId, id, mr);
+        }
+        this._mrIndex = { byBranch, byId };
+      }
+      return this._mrIndex;
+    },
+    mrRefIds(mr) {
+      const ids = new Set();
+      const title = mr.title || '';
+      let m;
+      const reRef = /(?:refs?|fix(?:es|ed)?)\s*#?(\d{3,})/gi;
+      while ((m = reRef.exec(title))) ids.add(m[1]);
+      const reWord = /(?:bug|task)[-_ ]?(\d{4,})/gi;
+      while ((m = reWord.exec(title))) ids.add(m[1]);
+      for (const tok of String(mr.source_branch || '').split(/[^0-9]+/)) {
+        if (tok.length >= 5) ids.add(tok);
+      }
+      return ids;
+    },
+    mrsFor(issue) {
+      const idx = this.mrIndex;
+      if (!idx.byBranch.size && !idx.byId.size) return [];
+      const found = new Map();
+      const key = (mr) => mr.project_id + '!' + mr.iid;
+      if (issue.branch && idx.byBranch.has(issue.branch)) {
+        for (const mr of idx.byBranch.get(issue.branch)) found.set(key(mr), mr);
+      }
+      const byId = idx.byId.get(String(issue.id));
+      if (byId) for (const mr of byId) found.set(key(mr), mr);
+      const stateRank = { opened: 0, locked: 1, merged: 2, closed: 3 };
+      return Array.from(found.values()).sort(
+        (a, b) => (stateRank[a.state] ?? 9) - (stateRank[b.state] ?? 9) || (a.updated_at < b.updated_at ? 1 : -1)
+      );
+    },
+    // 卡片默认只展示前 4 个（opened 优先），+N 展开——大父任务可能挂几十个 MR
+    visibleMrs(issue) {
+      const limit = this.mrExpanded[issue.id] ? 200 : 4;
+      return this.mrsFor(issue).slice(0, limit);
+    },
+    hiddenMrCount(issue) {
+      return this.mrsFor(issue).length - this.visibleMrs(issue).length;
+    },
+    toggleMrExpand(issue) {
+      this.mrExpanded[issue.id] = !this.mrExpanded[issue.id];
+    },
+    recentMrs(issue) {
+      return this.mrsFor(issue).slice(0, 3);
+    },
+    get mrStats() {
+      if (!this.mrs.length) return null;
+      const opened = this.mrs.filter((m) => m.state === 'opened');
+      return {
+        opened: opened.filter((m) => !m.draft).length,
+        draft: opened.filter((m) => m.draft).length,
+        conflicts: opened.filter((m) => m.has_conflicts).length,
+        discussions: opened.filter((m) => m.has_unresolved_discussions).length,
+      };
+    },
+    mrChipClass(mr) {
+      const stateMap = { opened: 'open', merged: 'merged', closed: 'closed', locked: 'locked' };
+      return (
+        'mr-' + (stateMap[mr.state] || 'open') +
+        (mr.draft ? ' mr-draft' : '') +
+        (mr.has_unresolved_discussions ? ' has-discussions' : '') +
+        (mr.has_conflicts ? ' has-conflict' : '')
+      );
+    },
+    mrMiniClass(mr) {
+      const stateMap = { opened: 's-open', merged: 's-merged', closed: 's-closed', locked: 's-open' };
+      return (
+        (stateMap[mr.state] || 's-open') +
+        (mr.draft ? ' s-draft' : '') +
+        (mr.has_unresolved_discussions ? ' s-discuss' : '') +
+        (mr.has_conflicts ? ' s-conflict' : '')
+      );
+    },
+    mrLabel(mr) {
+      if (mr.state === 'opened') return mr.draft ? 'Draft' : '待合并';
+      return { merged: '已合并', closed: '已关闭', locked: '已锁定' }[mr.state] || mr.state;
+    },
+    mrTitle(mr) {
+      const parts = [mr.title || '', `${mr.source_branch} → ${mr.target_branch}`];
+      if (mr.detailed_merge_status) parts.push(mr.detailed_merge_status);
+      if (mr.has_conflicts) parts.push('存在冲突');
+      if (mr.has_unresolved_discussions) parts.push('有未解决讨论');
+      if (mr.project_path) parts.push(mr.project_path);
+      return parts.join('\n');
+    },
+
+    // ── CI pipeline（点 CI 弹详情窗：pipeline 先展示，job 明细按需异步加载）──
+    pipelineKey(mr) { return mr.project_id + '!' + mr.iid; },
+    onCiClick(mr) { this.openCiModal(mr); },
+    async openCiModal(mr) {
+      const key = this.pipelineKey(mr);
+      let st = this.pipelines[key];
+      if (!st || st.kind === 'unknown' || st.kind === 'error') {
+        await this.loadPipeline(mr, st && !st.loading);
+        st = this.pipelines[key];
+      }
+      this.ciModal = { mr, st, jobs: [], loadingJobs: Boolean(st && st.id), jobsError: '' };
+      this.fetchCiJobs();
+    },
+    async fetchCiJobs(force = false) {
+      const m = this.ciModal;
+      if (!m || !m.st || !m.st.id || m.st.kind === 'none') return;
+      m.loadingJobs = true;
+      m.jobsError = '';
+      try {
+        const q = 'project_id=' + m.mr.project_id + '&pipeline_id=' + m.st.id + (force ? '&force=1' : '');
+        const d = await this.api('/api/mr-jobs?' + q);
+        m.jobs = d.jobs || [];
+      } catch (e) {
+        m.jobsError = e.message;
+      }
+      m.loadingJobs = false;
+    },
+    async refreshCi() {
+      const m = this.ciModal;
+      if (!m) return;
+      await this.loadPipeline(m.mr, true);
+      m.st = this.pipelines[this.pipelineKey(m.mr)];
+      m.jobs = [];
+      this.fetchCiJobs(true);
+    },
+    closeCiModal() { this.ciModal = null; },
+    async loadPipeline(mr, force = false) {
+      const key = this.pipelineKey(mr);
+      const cur = this.pipelines[key];
+      if (cur && cur.loading) return;
+      if (cur && !force && cur.kind !== 'unknown') return;
+      this.pipelines[key] = { loading: true, kind: 'loading' };
+      try {
+        const q = 'project_id=' + mr.project_id + '&iid=' + mr.iid + (force ? '&force=1' : '');
+        const p = await this.api('/api/mr-pipeline?' + q);
+        const kindMap = {
+          success: 'passed', failed: 'failed',
+          running: 'running', pending: 'running', created: 'running',
+          waiting_for_resource: 'running', preparing: 'running', scheduled: 'running',
+          manual: 'info', canceled: 'info', skipped: 'info', none: 'none',
+        };
+        this.pipelines[key] = {
+          loading: false,
+          kind: kindMap[p.status] || 'unknown',
+          status: p.status,
+          id: p.id || null,
+          ref: p.ref || '',
+          sha: p.sha || '',
+          duration: p.duration || null,
+          finishedAt: p.finished_at || null,
+          webUrl: p.web_url || mr.web_url,
+        };
+      } catch (e) {
+        this.pipelines[key] = { loading: false, kind: 'error', status: e.message };
+      }
+    },
+    ciClass(mr) {
+      const st = this.pipelines[this.pipelineKey(mr)];
+      return st ? 'ci-' + st.kind : '';
+    },
+    ciContent(mr) {
+      const st = this.pipelines[this.pipelineKey(mr)];
+      if (!st) return 'CI';
+      const iconMap = { loading: 'i-clockrun', passed: 'i-check', failed: 'i-x', running: 'i-clockrun', info: 'i-dash', none: 'i-dash', error: 'i-warn' };
+      const labelMap = { passed: '通过', failed: '失败', running: '运行中', info: '跳过', none: '无CI', error: '查询失败' };
+      const use = iconMap[st.kind] || 'i-dash';
+      const label = labelMap[st.kind] || '';
+      return `<svg class="ic"><use href="#${use}"/></svg>` + (label ? `<span>${label}</span>` : '');
+    },
+    ciTitle(mr) {
+      const st = this.pipelines[this.pipelineKey(mr)];
+      if (!st) return '查看 CI 详情';
+      if (st.loading) return 'CI 查询中…';
+      return 'CI ' + this.ciStateLabel(st) + ' · 点击查看详情';
+    },
+    ciStateLabel(st) {
+      if (!st || st.loading) return '查询中…';
+      return ({ passed: '通过', failed: '失败', running: '运行中', info: '跳过/取消', none: '无流水线', error: '查询失败', unknown: '未知' })[st.kind] || '未知';
+    },
+    jobStatusClass(s) {
+      return ({ success: 'job-ok', failed: 'job-fail', running: 'job-run' })[s] || 'job-wait';
+    },
+    jobIcon(s) {
+      return ({ success: '#i-check', failed: '#i-x', running: '#i-clockrun', skipped: '#i-dash', canceled: '#i-dash', manual: '#i-dash' })[s] || '#i-clockrun';
+    },
+    formatDuration(sec) {
+      const s = Math.round(sec);
+      const m = Math.floor(s / 60);
+      return m > 0 ? `${m} 分 ${s % 60} 秒` : `${s} 秒`;
+    },
+
+    // ── 展示辅助 ──
+    trackerClass(t) {
+      return ({ Bug: 't-bug', Task: 't-task', Feature: 't-feature', Patch: 't-patch' })[t] || 't-task';
+    },
+    trackerIcon(t) {
+      return ({ Bug: '#i-bug', Task: '#i-task', Feature: '#i-feature', Patch: '#i-patch' })[t] || '#i-task';
+    },
+    openUrl(url) { if (url) window.open(url, '_blank', 'noreferrer'); },
+
+    dueClass(dateStr) {
+      const d = new Date(dateStr);
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const diff = (d - now) / 86400000;
+      if (diff < 0) return 'due-overdue';
+      if (diff <= 2) return 'due-soon';
+      return '';
+    },
+    formatDate(s) {
+      if (!s) return '';
+      const d = new Date(s);
+      const now = new Date();
+      const diff = (now - d) / 86400000;
+      if (d.getDate() === now.getDate()) return '今天';
+      if (diff < 2) return '昨天';
+      if (diff < 7) return Math.floor(diff) + ' 天前';
+      return `${d.getMonth() + 1}/${d.getDate()}`;
+    },
+    formatDateTime(s) {
+      if (!s) return '';
+      const d = new Date(s);
+      return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    },
+    formatSyncTime(s) {
+      if (!s) return '等待';
+      const d = new Date(s);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    },
+    get syncLabel() {
+      const main = this.tab === 'recent' ? this.recent : this.overview;
+      const t1 = main ? this.formatSyncTime(main.fetchedAt) : '—';
+      const t2 = this.mrStatus ? this.formatSyncTime(this.mrStatus.fetchedAt) : '—';
+      return '同步 ' + t1 + (t2 !== '—' ? ' · MR ' + t2 : '');
+    },
+  };
+}
+</script>
+</body>
+</html>

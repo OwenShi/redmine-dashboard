@@ -581,7 +581,8 @@
     .brand-subtitle { display: none; }
     .select-wrap label { display: none; }
     .select-wrap { padding-left: 0; min-height: 40px; height: 40px; }
-    .select-wrap select { min-height: 40px; font-size: 13px; }
+    /* iOS Safari 的 select 文字垂直位置不受元素高度控制，line-height 钉死 + 左内边距让文字在按钮内居中 */
+    .select-wrap select { height: 40px; line-height: 40px; font-size: 13px; padding: 0 26px 0 12px; }
     .icon-btn { width: 40px; height: 40px; }
     .tab { min-height: 40px; padding: 8px 16px; font-size: 13px; }
     .toolbar { align-items: stretch; }
@@ -595,6 +596,8 @@
     .toolbar-meta { width: 100%; margin-left: 0; }
     .stat-chip { min-height: 40px; }
     .status-col-head { min-height: 44px; }
+    /* 折叠 pill 去掉左内边距，badge 与展开列头左缘对齐（1px 边框差不可见） */
+    .status-col.is-collapsed .status-col-head { padding-left: 0; padding-right: 10px; }
     .mr-main { padding: 5px 10px; }
     .ci-btn { min-width: 34px; min-height: 30px; }
     .mr-mini { padding: 4px 9px; }
@@ -1014,7 +1017,7 @@
     <span class="dot-sep">GitLab MR <span x-text="mrStatus && mrStatus.available ? mrStatus.count + ' 条' : '不可用'"></span></span>
     <span class="dot-sep m-hide">本地缓存 60s / MR 120s</span>
     <span class="dot-sep m-hide">每 5 分钟自动同步</span>
-    <span class="dot-sep" title="构建版本，用于核对手机是否拿到最新页面">b0910.2</span>
+    <span class="dot-sep" title="构建版本，用于核对手机是否拿到最新页面">b0910.3</span>
   </footer>
 </div>
 

@@ -66,7 +66,7 @@
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   [x-cloak] { display: none !important; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; overflow-x: clip; }
   body {
     font-family: var(--sans);
     background:
@@ -260,11 +260,14 @@
   .version-body { padding: 6px 0 26px; }
 
   /* ── 状态列 ── */
-  .status-cols { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; }
+  /* 折叠态与展开态共用同一栅格位、同一列头行高、同一边距；stretch 让分隔线贯穿整行 */
+  .status-cols { display: flex; flex-wrap: wrap; align-items: stretch; gap: 18px; }
   .status-col { flex: 1 1 240px; min-width: 0; padding-left: 15px; border-left: 1px solid var(--line-soft); }
-  .status-col:first-child { padding-left: 0; border-left: 0; }
+  /* :first-of-type 而非 :first-child——Alpine 的 template 元素会插在列前 */
+  .status-col:first-of-type { padding-left: 0; border-left: 0; }
   .status-col-head {
     width: 100%; display: flex; align-items: center; gap: 8px;
+    min-height: 36px;
     margin-bottom: 10px; padding: 0; border: 0; background: transparent; cursor: pointer;
     color: var(--dim); text-align: left; font-size: 11px; font-weight: 700;
     letter-spacing: 0.04em;
@@ -282,9 +285,8 @@
   .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--st-new)); flex-shrink: 0; }
   .status-col-head .col-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .column-chevron { color: var(--mute); font-size: 11px; transition: transform 0.18s; }
-  .status-col.is-collapsed { flex: 0 0 175px; padding-left: 0; border-left: 0; }
   .status-col.is-collapsed .status-col-head {
-    min-height: 34px; margin-bottom: 0; padding: 7px 9px;
+    padding: 0 10px;
     border: 1px solid var(--line-soft);
     border-radius: 7px; background: var(--surface); letter-spacing: 0.02em; font-size: 11.5px; font-weight: 600;
   }
@@ -578,7 +580,7 @@
     .brand h1 span { display: none; }
     .brand-subtitle { display: none; }
     .select-wrap label { display: none; }
-    .select-wrap { padding-left: 0; min-height: 40px; }
+    .select-wrap { padding-left: 0; min-height: 40px; height: 40px; }
     .select-wrap select { min-height: 40px; font-size: 13px; }
     .icon-btn { width: 40px; height: 40px; }
     .tab { min-height: 40px; padding: 8px 16px; font-size: 13px; }
@@ -592,7 +594,7 @@
     .filter-chip { min-height: 38px; padding: 8px 13px; font-size: 12px; }
     .toolbar-meta { width: 100%; margin-left: 0; }
     .stat-chip { min-height: 40px; }
-    .status-col.is-collapsed .status-col-head { min-height: 42px; }
+    .status-col-head { min-height: 44px; }
     .mr-main { padding: 5px 10px; }
     .ci-btn { min-width: 34px; min-height: 30px; }
     .mr-mini { padding: 4px 9px; }

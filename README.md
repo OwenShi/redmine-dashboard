@@ -2,6 +2,12 @@
 
 一个轻量的可视化看板，聚合你在 Redmine 上的任务/Bug，按版本分组、状态分类展示，并自动关联你在 GitLab 上的 Merge Request 状态。替代慢且难用的 Redmine 网页筛选。
 
+![看板](docs/screenshot-board.png)
+
+![卡片上的 MR 徽标](docs/screenshot-mr.png)
+
+![移动端](docs/screenshot-mobile.png)
+
 ## 特性
 
 - 📋 **按版本分组 + 状态分列**：一眼看清每个版本下各状态的任务分布
@@ -38,8 +44,10 @@ API Key 获取方式：Redmine → 我的帐户 → 右侧「API 访问密钥」
 
 ### 给其他同事使用
 
-1. 把整个目录发给他（或从 GitLab clone）
-2. 他需要：Node.js ≥14；`redmine auth login` 配一次自己的账号（MR 状态需要 `glab login`）
+1. 把仓库地址发给他，clone（或直接 zip 发目录）
+2. 凭据准备，两条路任选：
+   - **推荐**：装 redmine CLI 并 `redmine auth login`（之后启动脚本全自动，MR 状态需要 `glab login` 或设置 `GITLAB_TOKEN`）
+   - **没有 redmine CLI 也能用**：去 Redmine → 我的帐户 → 显示 API 访问密钥，然后 `REDMINE_URL=https://你的redmine地址 REDMINE_API_KEY=你的key node server.js`
 3. 启动（三平台都支持）：
    - **macOS**：双击 `Redmine看板.command`
    - **Windows**：双击 `start.bat`
@@ -52,12 +60,13 @@ API Key 获取方式：Redmine → 我的帐户 → 右侧「API 访问密钥」
 - **近期动态**：顶部切换标签，查看近 N 天你更新过的 issue
 - **MR 徽标**：卡片下方出现 `!38287` 样式的 token 即为关联 MR；`待合并/草稿/已合并/已关闭/⚠冲突` 一目了然，点 token 打开 MR 页面，点右侧 `CI` 按需查询流水线（再点一次强制刷新）
 - **刷新**：右上角同步按钮强制刷新；页面每 5 分钟在可见时自动同步
+- **交互技巧**：按 `/` 快速聚焦搜索（Esc 清除）；点版本区头/状态列头折叠，折叠状态会记住（刷新不丢）；一个 issue 挂多个 MR 时默认显示前 4 个，点 `+N` 展开；页脚的 `b0910.3` 是构建号，核对版本用
 
 ## GitLab MR 关联机制
 
 后端拉取你创建的最近 100 条 MR（含 opened + 近期 merged/closed），前端按三级规则匹配到 issue，命中任意一级即挂上徽标：
 
-1. issue 自定义字段「分支名称」=== MR `source_branch`（精确，最可靠）
+1. issue 自定义字段「分支名称」=== MR `source_branch`（精确，最可靠；若你的 Redmine 实例没有此字段，自动跳过，2/3 级匹配是通用的）
 2. MR 标题中的 `Refs #N` / `Fix #N` 引用
 3. 分支名中的数字 token（如 `hotfix/bug-150117-web` → 150117）
 

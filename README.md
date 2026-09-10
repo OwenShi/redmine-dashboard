@@ -162,3 +162,7 @@ nssm start redmine-board
 - `.command` / `start.sh` 保持 LF 换行
 - 发版时更新页脚构建号（如 `b0910.3`）：页面以 no-store 下发防止缓存，构建号用于核对客户端（尤其是手机 Safari）是否拿到最新版本
 - 移动端视觉验证须使用 WebKit 引擎（如 Playwright 的 `webkit`，与 iOS Safari 同源）：Chrome 移动模拟在 select 渲染、行高计算等细节上与 iOS 存在差异，可能遗漏真机问题
+
+## 许可证
+
+[MIT](LICENSE)

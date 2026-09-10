@@ -51,9 +51,36 @@ node start.js
 
 ### MR 状态（可选）
 
-显示 MR 状态需要 GitLab 凭据：安装 [glab CLI](https://gitlab.com/gitlab-org/cli) 并执行 `glab login`，或设置 `GITLAB_TOKEN` 环境变量。未配置时看板功能正常，仅不显示 MR 徽标。
+显示 MR 状态需要 GitLab 凭据，以下两种方式任选其一：
 
-凭据仅保存在本机（CLI 配置文件或环境变量），仓库中不含任何密钥。
+**方式一：glab CLI（推荐）**
+
+```bash
+# 自建 GitLab 需指定地址；gitlab.com 可省略 --hostname
+glab auth login --hostname https://你的GitLab地址
+```
+
+后端自动从 glab 的本地配置读取 GitLab 地址与 token，无需其他设置。支持的配置位置：
+
+| 平台 | 配置路径 |
+|------|----------|
+| macOS | `~/Library/Application Support/glab-cli/config.yml` |
+| Linux | `~/.config/glab-cli/config.yml`（遵循 `XDG_CONFIG_HOME`） |
+| Windows | `%LOCALAPPDATA%\glab-cli\config.yml` |
+
+也可用 `GLAB_CONFIG_DIR` 环境变量指定自定义位置。
+
+**方式二：环境变量**
+
+同时设置以下两个变量（缺一不可：只有 token 时服务端无法得知 GitLab 地址）：
+
+```bash
+GITLAB_URL=https://你的GitLab地址 GITLAB_TOKEN=你的token node start.js
+```
+
+token 在 GitLab 网页端创建：**Preferences → Access Tokens**，勾选 `read_api` 权限即可（只读，够用且安全）。
+
+未配置时看板其他功能正常，仅不显示 MR 徽标。凭据仅保存在本机（CLI 配置文件或环境变量），仓库中不含任何密钥。
 
 ## 使用说明
 
@@ -68,7 +95,7 @@ node start.js
 
 | 现象 | 处理 |
 |------|------|
-| 显示「MR 状态不可用」 | 执行一次 `glab login`，或设置 `GITLAB_TOKEN` 环境变量 |
+| 显示「MR 状态不可用」 | 执行 `glab auth login --hostname 你的GitLab地址`；或同时设置 `GITLAB_URL` 与 `GITLAB_TOKEN` 环境变量 |
 | 页面疑似未更新 | 核对页脚构建号后强制刷新（页面以 no-store 下发，通常不会发生） |
 | 数据不是最新 | 后端有 60 秒缓存，点击右上角同步按钮立即刷新 |
 | 更换电脑使用 | 凭据保存在本机，新设备需重新配置 |

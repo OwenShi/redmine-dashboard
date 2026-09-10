@@ -13,6 +13,7 @@
 - 🔒 **凭据安全**：Key 只存在后端（环境变量或本地 CLI 配置），前端拿不到
 - 🧩 **零依赖**：后端单文件 Node.js，前端单文件 HTML，无需 npm install
 - 🔗 **点击跳转**：任意卡片点击直达 Redmine 原文
+- 📱 **移动端适配**：响应式布局 + 触屏优化（40px+ 点击目标、iOS 输入框缩放与缓存兼容），手机浏览器直接访问
 
 ## 快速开始
 
@@ -137,6 +138,8 @@ REDMINE_API_KEY=你的key nohup node server.js > dashboard.log 2>&1 &
 
 - `*.bat` / `*.ps1` 必须保持 **CRLF** 换行：cmd.exe 解析 LF 换行的批处理会把多行粘成一行执行。已由 `.gitattributes` 锁定入库字节，但在 macOS/Linux 上编辑这些文件时请确认编辑器不会把换行转成 LF
 - 启动脚本（`.command` / `start.sh`）保持 LF
+- **发版时更新页脚构建号**（`b0910.3` 这类标记）：页面以 `no-store` 下发防缓存，构建号用于核对客户端（尤其手机 Safari）是否拿到最新版本
+- **移动端视觉验证须用 WebKit 引擎**（如 Playwright 的 `webkit`，与 iOS Safari 同源）：Chrome 移动模拟在 select 渲染、行高计算等细节上与 iOS 存在差异，会漏掉真机问题
 
 ## 后续可扩展
 

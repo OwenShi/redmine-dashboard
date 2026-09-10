@@ -311,7 +311,8 @@ function serveStatic(res, filePath, contentType) {
       res.end('Not Found');
       return;
     }
-    res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' });
+    // no-store：禁止任何缓存（iOS Safari 对 no-cache 的再验证不总是遵守，导致更新后手机看不到新版本）
+    res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-store' });
     res.end(data);
   });
 }
